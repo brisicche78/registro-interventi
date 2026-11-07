@@ -86,7 +86,7 @@ async function history(){
   let currentDate="";
   records.forEach(it=>{
    const k=it.date||"";
-   if(k!==currentDate){const h=document.createElement("div");h.className="day";h.textContent(/^\\d{4}-\\d{2}-\\d{2}$/.test(k)?dateLabel(k):k||"Data non indicata");root.appendChild(h);currentDate=k}
+   if(k!==currentDate){const h=document.createElement("div");h.className="day";h.textContent = (/^\d{4}-\d{2}-\d{2}$/.test(k) ? dateLabel(k) : (k || "Data non indicata"));root.appendChild(h);currentDate=k}
    const c=document.createElement("div");c.className="card";
    const types=String(it.types||"").split(",").map(x=>x.trim()).filter(Boolean);
    c.innerHTML='<div class="recordtitle">'+esc(it.client)+'</div><div>'+types.map(t=>'<span class="pill">'+esc(t)+'</span>').join("")+'</div><div class="muted" style="margin-top:8px">'+esc(it.outcome||"Esito non indicato")+'</div>'+(it.other?'<div class="recordnote">'+esc(it.other)+'</div>':'')+(it.note?'<div class="recordnote">'+esc(it.note)+'</div>':'');
