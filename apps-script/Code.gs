@@ -32,26 +32,14 @@ function setupRegistro() {
     'Data', 'Cliente', 'Tipi di lavoro', 'Esito', 'Nota', 'Aggiornato il'
   ]);
   ScriptApp.getProjectTriggers().forEach(t => {
-    if (['scanCalendarToday', 'dailyTriggerSetup'].includes(t.getHandlerFunction())) ScriptApp.deleteTrigger(t);
+    if (t.getHandlerFunction() === 'scanCalendarToday') ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('dailyTriggerSetup').timeBased().everyDays(1).atHour(5).create();
+  // Un trigger orario persistente: la funzione lavora solo tra le 05:00 e le 19:00.
+  // Apps Script non garantisce il minuto esatto; l'esecuzione è approssimativa.
+  ScriptApp.newTrigger('scanCalendarToday').timeBased().everyHours(1).create();
   scanCalendarToday();
   Logger.log('Archivio creato: ' + ss.getUrl());
   return ss.getUrl();
-}
-
-function dailyTriggerSetup() {
-  ScriptApp.getProjectTriggers().forEach(t => {
-    if (t.getHandlerFunction() === 'scanCalendarToday') ScriptApp.deleteTrigger(t);
-  });
-  // Primo controllo subito dopo le 05:00; poi ogni ora fino alle 19:00.
-  scanCalendarToday();
-  for (let h = CONFIG.FIRST_HOUR + 1; h <= CONFIG.LAST_HOUR; h++) {
-    ScriptApp.newTrigger('scanCalendarToday')
-      .timeBased()
-      .at(new Date(new Date().toLocaleDateString('en-US', { timeZone: CONFIG.TIME_ZONE }) + ' ' + String(h).padStart(2, '0') + ':05:00'))
-      .create();
-  }
 }
 
 function scanCalendarToday() {
