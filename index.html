@@ -74,11 +74,28 @@ function editor(index=null){
 }
 async function archiviaIntervento(record){try{await apiCall("save",{payload:record});console.info("Intervento archiviato su Google Drive");}catch(e){alert("Intervento salvato su questo dispositivo, ma non ancora su Google Drive.\n"+e.message+"\nRiprova modificandolo e salvandolo di nuovo.");}}
 async function caricaCalendarioOggi(){if(!connection.url||!connection.token)return;try{const result=await apiCall("today");const items=day();(result.events||[]).forEach(ev=>{const key=String(ev.id||"");if(!key)return;const existing=items.find(x=>x.calendarEventId===key);if(!existing){items.push({id:"cal-"+key,date:todayKey(),calendarEventId:key,client:ev.client||"Appuntamento senza titolo",types:[],outcome:"",note:ev.description||"",other:"",source:"calendar",updatedAt:""});}else{existing.client=existing.client||ev.client;}});save();render();}catch(e){console.warn("Lettura calendario non riuscita:",e);}}
-function history(){
- const root=document.getElementById("historyList");root.innerHTML="";
- const keys=Object.keys(data.days).sort().reverse().filter(k=>data.days[k]?.length);
- if(!keys.length){root.innerHTML='<div class="card empty"><div class="symbol">📚</div><strong>Lo storico è ancora vuoto</strong><div class="muted">Gli interventi che registri compariranno qui, divisi per giornata.</div></div>';return}
- keys.forEach(k=>{const h=document.createElement("div");h.className="day";h.textContent=dateLabel(k);root.appendChild(h);data.days[k].forEach(it=>{const c=document.createElement("div");c.className="card";c.innerHTML='<div class="recordtitle">'+esc(it.client)+'</div><div>'+it.types.map(t=>'<span class="pill">'+esc(t)+'</span>').join("")+'</div><div class="muted" style="margin-top:8px">'+esc(it.outcome||"Da completare")+'</div>'+(it.note?'<div class="recordnote">'+esc(it.note)+'</div>':'');root.appendChild(c)})});
+async function history(){
+ const root=document.getElementById("historyList");
+ root.innerHTML='<div class="card empty"><strong>Caricamento storico…</strong></div>';
+ try{
+  const result=await apiCall("history");
+  const records=Array.isArray(result.records)?result.records:[];
+  root.innerHTML="";
+  if(!records.length){root.innerHTML='<div class="card empty"><div class="symbol">📚</div><strong>Lo storico è ancora vuoto</strong><div class="muted">Gli interventi salvati su Google Drive compariranno qui.</div></div>';return}
+  records.sort((a,b)=>(b.date||"").localeCompare(a.date||"")||(b.updatedAt||"").localeCompare(a.updatedAt||""));
+  let currentDate="";
+  records.forEach(it=>{
+   const k=it.date||"";
+   if(k!==currentDate){const h=document.createElement("div");h.className="day";h.textContent(/^\\d{4}-\\d{2}-\\d{2}$/.test(k)?dateLabel(k):k||"Data non indicata");root.appendChild(h);currentDate=k}
+   const c=document.createElement("div");c.className="card";
+   const types=String(it.types||"").split(",").map(x=>x.trim()).filter(Boolean);
+   c.innerHTML='<div class="recordtitle">'+esc(it.client)+'</div><div>'+types.map(t=>'<span class="pill">'+esc(t)+'</span>').join("")+'</div><div class="muted" style="margin-top:8px">'+esc(it.outcome||"Esito non indicato")+'</div>'+(it.other?'<div class="recordnote">'+esc(it.other)+'</div>':'')+(it.note?'<div class="recordnote">'+esc(it.note)+'</div>':'');
+   root.appendChild(c);
+  });
+ }catch(e){
+  root.innerHTML='<div class="card empty"><strong>Non riesco a caricare lo storico</strong><div class="muted">'+esc(e.message)+'</div><div style="margin-top:14px"><button class="primary" id="retryHistory">Riprova</button></div></div>';
+  const retry=document.getElementById("retryHistory");if(retry)retry.onclick=history;
+ }
 }
 function showTab(tab){document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));document.getElementById("todayView").classList.toggle("hidden",tab!=="today");document.getElementById("historyView").classList.toggle("hidden",tab!=="history");document.getElementById("settingsView").classList.toggle("hidden",tab!=="settings");if(tab==="history")history();if(tab==="settings"){document.getElementById("apiUrl").value=connection.url;document.getElementById("apiToken").value=connection.token}}
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
