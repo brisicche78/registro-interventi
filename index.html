@@ -26,7 +26,7 @@ label{display:block;font-size:13px;font-weight:650;color:#405166;margin:15px 0 7
 <body>
 <header><div class="brand">Registro personale</div><div class="headrow"><h1>Registro Interventi</h1><span aria-hidden="true">📋</span></div><div class="today" id="todayLabel"></div></header>
 <main>
-<nav class="tabs" aria-label="Sezioni"><button class="tab active" data-tab="today">Oggi</button><button class="tab" data-tab="history">Storico</button></nav>
+<nav class="tabs" aria-label="Sezioni"><button class="tab active" data-tab="today">Oggi</button><button class="tab" data-tab="history">Storico</button><button class="tab" data-tab="settings">Impostazioni</button></nav>
 <section id="todayView">
 <div class="sectionhead"><div><h2>Oggi da convalidare</h2><div class="muted">Conferma solo i lavori realmente svolti</div></div><button class="primary small" id="addBtn">＋ Aggiungi</button></div>
 <div id="todayList"></div>
@@ -36,10 +36,17 @@ label{display:block;font-size:13px;font-weight:650;color:#405166;margin:15px 0 7
 <div class="sectionhead"><div><h2>Storico interventi</h2><div class="muted">Le giornate più recenti sono in cima</div></div></div>
 <div id="historyList"></div>
 </section>
+<section id="settingsView" class="hidden"><div class="sectionhead"><div><h2>Collegamento archivio</h2><div class="muted">Configurazione privata su questo dispositivo</div></div></div><div class="card"><label for="apiUrl">Indirizzo Web App Google</label><input id="apiUrl" type="text" autocomplete="url" placeholder="https://script.google.com/macros/s/.../exec"><label for="apiToken">Token personale</label><input id="apiToken" type="text" autocomplete="off" placeholder="Incolla il token dai log di Apps Script"><div class="actions"><button class="primary" id="connectBtn">Salva e verifica collegamento</button></div><div id="connectionStatus" class="muted" style="margin-top:12px">Non ancora configurato.</div></div><div class="footerhint">Indirizzo e token vengono conservati soltanto nel browser di questo dispositivo e non sono pubblicati su GitHub.</div></section>
 </main>
 <script>
 const TYPES=["Manutenzione compressore","Montaggio compressore","Realizzazione impianto","Sopralluogo","Urgenza","Altro"];
 const KEY="registro-interventi-v1";
+const CONFIG_KEY="registro-interventi-connection-v1";
+let connection=loadConnection();
+function loadConnection(){try{return JSON.parse(localStorage.getItem(CONFIG_KEY))||{url:"",token:""}}catch{return {url:"",token:""}}}
+function saveConnection(){localStorage.setItem(CONFIG_KEY,JSON.stringify(connection))}
+function apiCall(action,extra={}){return new Promise((resolve,reject)=>{if(!connection.url||!connection.token){reject(new Error("Configura prima indirizzo e token."));return}const callback="registroCb"+Date.now()+Math.floor(Math.random()*10000);const params=new URLSearchParams({action,token:connection.token,callback});Object.entries(extra).forEach(([k,v])=>params.set(k,typeof v==="string"?v:JSON.stringify(v)));const script=document.createElement("script");const timer=setTimeout(()=>{cleanup();reject(new Error("Tempo scaduto: verifica il collegamento."))},15000);function cleanup(){clearTimeout(timer);delete window[callback];script.remove()}window[callback]=data=>{cleanup();if(!data||data.ok===false)reject(new Error(data?.error||"Risposta non valida dal server."));else resolve(data)};script.onerror=()=>{cleanup();reject(new Error("Impossibile raggiungere Apps Script."))};script.src=connection.url+(connection.url.includes("?")?"&":"?")+params.toString();document.body.appendChild(script)})}
+
 const todayKey=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
 const dateLabel=k=>new Date(k+"T12:00:00").toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
 let data=load(),editing=null;
@@ -71,9 +78,11 @@ function history(){
  if(!keys.length){root.innerHTML='<div class="card empty"><div class="symbol">📚</div><strong>Lo storico è ancora vuoto</strong><div class="muted">Gli interventi che registri compariranno qui, divisi per giornata.</div></div>';return}
  keys.forEach(k=>{const h=document.createElement("div");h.className="day";h.textContent=dateLabel(k);root.appendChild(h);data.days[k].forEach(it=>{const c=document.createElement("div");c.className="card";c.innerHTML='<div class="recordtitle">'+esc(it.client)+'</div><div>'+it.types.map(t=>'<span class="pill">'+esc(t)+'</span>').join("")+'</div><div class="muted" style="margin-top:8px">'+esc(it.outcome||"Da completare")+'</div>'+(it.note?'<div class="recordnote">'+esc(it.note)+'</div>':'');root.appendChild(c)})});
 }
-function showTab(tab){document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));document.getElementById("todayView").classList.toggle("hidden",tab!=="today");document.getElementById("historyView").classList.toggle("hidden",tab!=="history");if(tab==="history")history()}
+function showTab(tab){document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));document.getElementById("todayView").classList.toggle("hidden",tab!=="today");document.getElementById("historyView").classList.toggle("hidden",tab!=="history");document.getElementById("settingsView").classList.toggle("hidden",tab!=="settings");if(tab==="history")history();if(tab==="settings"){document.getElementById("apiUrl").value=connection.url;document.getElementById("apiToken").value=connection.token}}
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
-document.getElementById("addBtn").onclick=()=>editor();render();
+document.getElementById("addBtn").onclick=()=>editor();
+document.getElementById("connectBtn").onclick=async()=>{const url=document.getElementById("apiUrl").value.trim(),token=document.getElementById("apiToken").value.trim(),status=document.getElementById("connectionStatus");if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url)){status.textContent="Controlla l’indirizzo: deve terminare con /exec.";return}if(!token){status.textContent="Inserisci il token generato da Apps Script.";return}connection={url,token};saveConnection();status.textContent="Verifica in corso…";try{const result=await apiCall("ping");status.textContent="Collegamento riuscito. Archivio Google raggiungibile.";}catch(e){status.textContent="Collegamento non riuscito: "+e.message;}};
+render();
 if("serviceWorker" in navigator && location.protocol!=="file:"){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}))}
 </script>
 </body></html>
