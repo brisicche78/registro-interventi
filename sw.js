@@ -1,4 +1,4 @@
-const CACHE = "registro-interventi-v9";
+const CACHE = "registro-interventi-v10";
 const FILES = [
   "./",
   "./index.html",
